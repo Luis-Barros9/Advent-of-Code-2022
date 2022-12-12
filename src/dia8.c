@@ -41,7 +41,7 @@ int main (int argc, char *argv[])
     if (argc <= 1) return 1;
     FILE *entrada = fopen(argv[1],"r");
     if (entrada == NULL) return 2;
-    int i = 0,t;
+    int t;
     // ler a primeira linha para determinar o tamanho de uma coluna
     char linha[1000];
     fgets(linha,1000,entrada);
