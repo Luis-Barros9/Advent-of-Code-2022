@@ -7,41 +7,35 @@
 #define CHEGADA 'z'
 
 
-typedef struct pos
-{
-    int indiceL;
-    int indiceC;
-} POS;
-
-typedef struct grid
-{
-    char **dados;
-    int nLinhas;
-    int nColunas;
-    int size;
-    POS inicio;
-    POS fim;
-}GRID;
+typedef struct aresta {
+int dest;
+struct aresta *prox;
+} *LAdj;
 
 
-
-int fimAoInicio(GRID *g);
-
-
-int diferentes (POS x, POS y);
+int contaPassos (int ant[],int d,int o);
 
 
-GRID *initGrid (int colunas,char *l);
+LAdj criaAresta(int destino,LAdj restantes);
 
-void insereLinha (GRID *g ,char *linha);
+void preecncheCaminhos(char *str,int nLinhas,int nColunas, LAdj *caminhos);
+
+
+int travessiaBF (int nDigitos, LAdj *caminhos ,int o,int destino,int visitados[]);
+
+
+int posicao (int nColunas,int indL,int indC);
 
 
 void tiraQuebraLinha (char *linha);
 
-void inicioEFim (GRID *g);
-
+void inicioFim (char *mapa,int *inicio, int *fim);
 
 int passo (char atual,char dest);
+
+int melhorInicio(int nDigitos,char *str,LAdj *caminhos,int destino, int ant[],int melhor);
+
+
 
 int main (int argc, char *argv[])
 {
@@ -49,24 +43,71 @@ int main (int argc, char *argv[])
     FILE *entrada = fopen(argv[1],"r");
 
 
-    int t;
+    int t = 1,aux=0,nLinhas =0,nColunas =0;
     // ler a primeira linha para determinar o tamanho de uma coluna
-    char linha[1000];
-    fgets(linha,1000,entrada);
+    char *mapa = NULL; 
+
+    size_t size;
+    char *linha;
+    getline(&linha,&size,entrada);
+    nLinhas ++;
     tiraQuebraLinha(linha);
-    t = strlen(linha);
-    GRID *g = initGrid(t,linha);
-    
-    while (fgets(linha,1000,entrada))
+    aux = strlen(linha); // numero de carateres
+    nColunas = aux;
+    t += aux;
+    mapa = malloc(t);
+    strcpy(mapa,linha);
+
+    while (getline(&linha,&size,entrada) != -1)
     {
-        tiraQuebraLinha (linha);
-        insereLinha (g,linha);
+        tiraQuebraLinha(linha);
+        nLinhas++;
+        t+=nColunas;
+        mapa = realloc(mapa,t);
+        strcpy(mapa+aux,linha);
+        aux += nColunas;
+
+    }
+    free (linha);
+    int inicio,fim;
+    inicioFim(mapa,&inicio,&fim);
+    LAdj *caminhos = malloc(aux * sizeof(LAdj));
+    int *ant = malloc(aux*sizeof(int));
+
+    preecncheCaminhos(mapa,nLinhas,nColunas,caminhos);
+
+    int x = travessiaBF(aux,caminhos,inicio,fim,ant);
+
+    int passos = contaPassos(ant,fim,inicio);
+
+
+
+    printf("(%d)Travessia completa em %d passos\n",x,passos);
+
+
+   int i = melhorInicio(aux,mapa,caminhos,fim,ant,passos);
+  printf("Melhor caminho em %d\n",i);
+
+
+}
+
+
+
+int melhorInicio(int nDigitos,char *str,LAdj *caminhos,int destino, int ant[],int melhor)
+{
+    int i,aux;
+    for (i=0; i<nDigitos; i++)
+    {
+        if (str[i] == 'a')
+        {
+            travessiaBF(nDigitos,caminhos,i,destino,ant);
+            aux = contaPassos(ant,destino,i);
+            if (aux>-1 && aux < melhor) melhor = aux;
+        }
     }
 
-    inicioEFim(g);
 
-    int melhorc = fimAoInicio (g);
-    printf ("%d\n",melhorc);
+    return melhor;
 
 }
 
@@ -81,138 +122,146 @@ void tiraQuebraLinha (char *linha)
         if (t > 0 && linha [t-1] == '\n') linha [t-1] = '\0';
 }
 
-GRID *initGrid (int colunas,char *l)
+int posicao (int nColunas,int indL,int indC)
 {
-    GRID *g = malloc (sizeof(GRID));
-    g->size = 0;
-    g->nColunas = colunas;
-    g->size = 4;
-    g->nLinhas = 1;
-    g->dados = malloc (g->size * sizeof(char *));
-    g->dados[0] = malloc (g->nColunas);
-    strcpy (g->dados[0], l);
-    return g;
-
+    int i =0;
+    i = nColunas *indL+ indC;
+    return i;
 }
 
-void insereLinha (GRID *g ,char *linha)
+void inicioFim (char *mapa,int *inicio, int *fim)
 {
-    if (g->size == g->nLinhas)
+    for (int i =0;mapa[i] != '\0';i++)
     {
-        g->size *=2;
-        g->dados = realloc(g->dados,g->size * sizeof (char *));
-    }
-    char *new = malloc (g->nColunas);
-    strcpy(new,linha);
-    g->dados[g->nLinhas] = new;
-    g->nLinhas++;
-
-}
-
-void inicioEFim (GRID *g)
-{
-    POS pos;
-    int i,j;
-    char *linha;
-    for (j =0; j< g->nLinhas ;j++)
-    {
-        linha = g->dados[j];
-        for (i =0; i< g->nColunas ;i++)
+        if (mapa[i] == 'S') 
         {
-            if (linha[i] == 'S')
-            {
-                pos.indiceC = i;
-                pos.indiceL =j;
-                g->inicio = pos;
-                linha[i] = PARTIDA;
-            }
-            else if (linha[i] == 'E')
-            {
-                pos.indiceC = i;
-                pos.indiceL =j;
-                g->fim = pos;
-                linha[i] = CHEGADA;
-
-            }
+            *inicio = i;
+            mapa[i] = PARTIDA;
+        }
+        else if (mapa[i] == 'E') 
+        {
+            mapa[i] = CHEGADA;
+            *fim = i;
         }
     }
 }
 
-
-int diferentes (POS x, POS y)
+int contaPassos (int ant[],int d,int o)
 {
-    return (x.indiceC != y.indiceC || x.indiceL != y.indiceL);
-}
-
-
-int fimAoInicio(GRID *g)
-{
-    int passos = 0;
-    POS atual = g->fim;
-    POS objetivo = g->inicio;
-    int melhor,passo;
-    char dir,altura,novo,anterior = '\0'; // e-> esquerd ->d ->dir c->cima b ->baixo;
-    while (diferentes (objetivo,atual))
+    int passos =0;
+    while ( d!= o && ant[d] >=0)
     {
-        passo = '\0';
-        melhor = -26;
-        altura = g->dados[atual.indiceL][atual.indiceC];
-
-        if (anterior != 'd' && atual.indiceC > 0) // possivel andar para a esquerda
-        {
-            novo = g->dados[atual.indiceL][atual.indiceC-1];
-            passo = altura -novo;
-            if (passo <= 1)
-            {
-                if (passo > melhor)
-                    dir = 'e';
-            }
-        }
-        if (anterior != 'e' && atual.indiceC < g->nColunas-1) // possivel andar para a direita
-        {
-            novo = g->dados[atual.indiceL][atual.indiceC+1];
-            passo = altura -novo;
-            if (passo <= 1)
-            {
-                if (passo > melhor)
-                    dir = 'd';
-            }
-        }
-        if (anterior != 'b' && atual.indiceL > 0) // possivel andar para cima
-        {
-            novo = g->dados[atual.indiceL-1][atual.indiceC];
-            passo = altura -novo;
-            if (passo <= 1)
-            {
-                if (passo > melhor)
-                    dir = 'c';
-            }
-        }
-        if (anterior != 'c' && atual.indiceL < g->nLinhas-1) // possivel andar para baixo
-        {
-            novo = g->dados[atual.indiceL+1][atual.indiceC];
-            passo = altura -novo;
-            if (passo <= 1)
-            {
-                if (passo > melhor)
-                    dir = 'b';
-            }
-        }
-
-        if (passo == '\0')
-        {
-            printf ("Erro no caminho\n");
-            return 0;
-        }
-        if (passo == 'e') atual.indiceC--;
-        else if (passo == 'd') atual.indiceC++;
-        else if (passo == 'c') atual.indiceL --;
-        else atual.indiceL++;
-
-        anterior = passo;
-        passos++;
-        
+        d = ant[d];
+        passos ++;
     }
+    if (d != o) passos = -1;
     return passos;
+}
+
+
+int travessiaBF (int nDigitos, LAdj *caminhos ,int o,int destino,int visitados[])
+{
+    for (int i = 0; i<nDigitos;i++)
+        visitados[i] = -2;
+
+    int *q = malloc(nDigitos* sizeof(int));
+
+    int inicio = 0,fim =0 ,count =0;
+    LAdj it;
+
+
+    q[fim++] = o; // enqueue ( q , o ) ;
+    visitados[o] = -1;
+
+    while ( inicio < fim ) 
+    { // ! empty ( q )
+        o = q[inicio++]; // o = dequeue ( q ) ;
+        count++;
+
+        for( it = caminhos[o] ; it != NULL; it= it->prox )
+        {
+            if ( visitados[it->dest] == -2)
+            {
+                q [fim++] = it->dest;
+                visitados[it->dest] = o;
+            }
+            
+            if (it->dest == destino) 
+            {
+                return count;
+            }
+        }
+
+
+    }
+    free(q);
+    return count;
+}
+
+
+
+LAdj criaAresta(int destino,LAdj restantes)
+{
+    LAdj x= malloc(sizeof(struct aresta));
+    x->dest = destino;
+    x->prox = restantes;
+    return x;
+}
+
+void libertaAresta(LAdj aresta)
+{
+    if (aresta == NULL) return;
+
+    libertaAresta(aresta->prox);
+    free (aresta);
+}
+
+
+void preecncheCaminhos(char *str,int nLinhas,int nColunas, LAdj *caminhos)
+{
+    int nDigitos = nLinhas *nColunas;
+    int i,j;
+    for (i =0; i<nDigitos;i++)
+    {
+        caminhos[i] = NULL;
+    }
+    int pos,dest;
+    char atual,proximo;
     
+    for ( i =0;i<nLinhas;i++)
+    {
+        for (j =0;j<nColunas;j++)
+        {
+            pos =posicao(nColunas,i,j);
+            atual = str[pos];
+
+            if (i)
+            {
+                dest = posicao(nColunas,i-1,j);
+                proximo = str[dest];
+                if (passo(atual,proximo)) caminhos[pos] = criaAresta(dest,caminhos[pos]);
+            }
+
+            if (i!= nLinhas-1)
+            {
+                dest = posicao(nColunas,i+1,j);
+                proximo = str[dest];
+                if (passo(atual,proximo)) caminhos[pos] = criaAresta(dest,caminhos[pos]);
+            }
+
+
+            if (j)
+            {
+                dest = posicao(nColunas,i,j-1);
+                proximo = str[dest];
+                if (passo(atual,proximo)) caminhos[pos] = criaAresta(dest,caminhos[pos]);
+            }
+            if (j != nColunas-1)
+            {
+                dest =posicao(nColunas,i,j+1);
+                proximo = str[dest];
+                if (passo(atual,proximo)) caminhos[pos] = criaAresta(dest,caminhos[pos]);
+            }
+        }
+    }
 }
